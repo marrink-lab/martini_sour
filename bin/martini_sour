@@ -98,21 +98,26 @@ def main():
                                    help='Enable debug logging output. Can be given '
                                    'multiple times.', default=0)
 
-    file_group = parser_gen_coords.add_argument_group('Input and output files')
-    file_group.add_argument('-o', dest='outpath', type=Path,
+    file_group = parser_gen_coords.add_argument_group('Convert regular to titratable beads.')
+    file_group.add_argument('-o', dest='out_file', type=Path,
                             help='output GRO (.gro)')
-    file_group.add_argument('-f', dest='coordpath', type=Path,
+    file_group.add_argument('-f', dest='input_file', type=Path,
                             help='input file (.gro)', default=None)
 
     titrate_group = file_group.add_mutually_exclusive_group(required=True)
-    titrate_group.add_argument('-bases', dest='bases', type=str, nargs='+',
-                           help='An enumeration of residues to convert to bases.')
-    titrate_group.add_argument('-acids', dest='bases', type=str, nargs='+',
-                           help='An enumeration of residues to convert to acids.')
-    titrate_group.add_argument('-auto', dest='auto', type=bool, default=False,
-                           help='Identify acids/bases automatically from known building blocks.')
+    titrate_group.add_argument('-sel', dest='sel', help='name of water atom')
+    titrate_group.add_argument('-bead',dest='bead_type',
+                               help='choice of: water, acid, base, acid-deprot, base-prot')
+
+#    titrate_group.add_argument('-bases', dest='bases', type=str, nargs='+',
+#                           help='An enumeration of residues to convert to bases.')
+#    titrate_group.add_argument('-acids', dest='bases', type=str, nargs='+',
+#                           help='An enumeration of residues to convert to acids.')
+#    titrate_group.add_argument('-auto', dest='auto', type=bool, default=False,
+#                           help='Identify acids/bases automatically from known building blocks.')
 
     parser_conv_coords.set_defaults(func=conv_coords)
+
 
     # ============================================================================
     #           Input Arguments for the analysis tool
