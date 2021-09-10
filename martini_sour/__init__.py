@@ -31,3 +31,7 @@ else:
     del pkg_resources
 
 del pbr
+
+from .src.conv_coords import conv_coords
+from .src.conv_itp import conv_itp
+from .src.degree_of_prot import analyze
