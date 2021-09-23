@@ -54,6 +54,8 @@ LOGGER.addHandler(COUNTER)
 LOGGER = StyleAdapter(LOGGER)
 
 VERSION = 'martini_sour version {}'.format(martini_sour.__version__)
+
+
 def main():
     """
     Parses commandline arguments and call relevant sub_programs.
@@ -75,8 +77,8 @@ def main():
     # =============================================================================
 
     parser_conv_itp.add_argument('-v', dest='verbosity', action='count',
-                                help='Enable debug logging output. Can be given '
-                                'multiple times.', default=0)
+                                 help='Enable debug logging output. Can be given '
+                                 'multiple times.', default=0)
 
     file_group = parser_conv_itp.add_argument_group('Input and output options')
     file_group.add_argument('-f', dest='inpath', required=False, type=Path,
@@ -86,11 +88,11 @@ def main():
 
     titrate_group = parser_conv_itp.add_argument_group('Titratable Bead definitions.')
     titrate_group.add_argument('-bases', dest='bases', type=str, nargs='+',
-                           help='An enumeration of residues to convert to bases.')
+                               help='An enumeration of residues to convert to bases.')
     titrate_group.add_argument('-acids', dest='bases', type=str, nargs='+',
-                           help='An enumeration of residues to convert to acids.')
+                               help='An enumeration of residues to convert to acids.')
     titrate_group.add_argument('-auto', dest='auto', type=bool, default=False,
-                           help='Identify acids/bases automatically from known building blocks.')
+                               help='Identify acids/bases automatically from known building ''blocks.')
 
     parser_conv_itp.set_defaults(func=conv_itp)
 
@@ -99,8 +101,8 @@ def main():
     # ============================================================================
 
     parser_conv_coords.add_argument('-v', dest='verbosity', action='count',
-                                   help='Enable debug logging output. Can be given '
-                                   'multiple times.', default=0)
+                                    help='Enable debug logging output. Can be given '
+                                    'multiple times.', default=0)
 
     file_group = parser_conv_coords.add_argument_group('Convert regular to titratable beads.')
     file_group.add_argument('-o', dest='out_file', type=Path,
@@ -108,10 +110,13 @@ def main():
     file_group.add_argument('-f', dest='input_file', type=Path,
                             help='input file (.gro)', default=None)
 
-    titrate_group = parser_conv_coords.add_argument_group('Titratable Bead Selections')
-    titrate_group.add_argument('-sel', dest='sel', help='name of water atom')
-    titrate_group.add_argument('-bead',dest='bead_type',
-                               help='choice of: water, acid, base, acid-deprot, base-prot')
+    titrate_group = parser_conv_coords.add_argument_group('Titratable Bead Selections '
+                                                          '(can enter multiple of each)')
+    titrate_group.add_argument('-bead', dest='bead_type', action='append',
+                               choices=martini_sour.src.conv_coords.bead_type_dict.keys(),
+                               help='type of the selected beads')
+    titrate_group.add_argument('-sel', dest='sel', action='append', help='selection command '
+                               '(see MDAnalysis) for the chosen bead type(s)')
 
 #    titrate_group.add_argument('-bases', dest='bases', type=str, nargs='+',
 #                           help='An enumeration of residues to convert to bases.')
@@ -121,7 +126,6 @@ def main():
 #                           help='Identify acids/bases automatically from known building blocks.')
 
     parser_conv_coords.set_defaults(func=conv_coords)
-
 
     # ============================================================================
     #           Input Arguments for the analysis tool
@@ -150,8 +154,8 @@ def main():
                             help='MDAnalysis selection string.')
 
     traj_group = parser_analyze.add_argument_group('Trajectory Options')
-    traj_group.add_argument('-b',dest='start',type=int,help='first frame (int)',default=0)
-    traj_group.add_argument('-e',dest='end',type=int,help='last frame (int)',default=-1)
+    traj_group.add_argument('-b', dest='start', type=int, help='first frame (int)', default=0)
+    traj_group.add_argument('-e', dest='end', type=int, help='last frame (int)', default=-1)
 
     parser_analyze.set_defaults(func=analyze)
 
@@ -160,14 +164,6 @@ def main():
     # ============================================================================
 
     args = parser.parse_args()
-
-    if args.list_blocks:
-        force_field = load_library("libs", args.list_blocks, [])
-        msg = 'The following Blocks are present in the following libraries: {}:'
-        print(msg.format(args.list_blocks))
-        for block in force_field.blocks:
-            print(block)
-        parser.exit()
 
     loglevels = {0: logging.INFO, 1: logging.DEBUG, 2: 5}
     LOGGER.setLevel(loglevels[args.verbosity])
