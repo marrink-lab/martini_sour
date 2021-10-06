@@ -28,7 +28,7 @@ from vermouth.log_helpers import (StyleAdapter, BipolarFormatter,
                                   ignore_warnings_and_count,)
 
 import martini_sour
-from martini_sour import conv_itp, conv_coords, analyze
+from martini_sour import conv_itp, conv_coords, analyze, titrate
 
 # Implement Logger
 LOGGER = TypeAdapter(logging.getLogger('martini_sour'))
@@ -71,6 +71,7 @@ def main():
     parser_conv_itp = subparsers.add_parser('conv_itp')
     parser_conv_coords = subparsers.add_parser('conv_coords')
     parser_analyze = subparsers.add_parser('analyze_traj')
+    parser_titrate = subparsers.add_parser('titrate')
 
     # =============================================================================
     # Input Arguments for the itp generation tool
@@ -126,6 +127,27 @@ def main():
 #                           help='Identify acids/bases automatically from known building blocks.')
 
     parser_conv_coords.set_defaults(func=conv_coords)
+
+    # ============================================================================
+    #           Input Arguments for initializing the titration
+    # ============================================================================
+
+    parser_titrate.add_argument('-v', dest='verbosity', action='count',
+                                help='Enable debug logging output. Can be given '
+                                'multiple times.', default=0)
+
+    parser_titrate.add_argument('-pH', dest='ph', type=str,
+                                help='pH value range. Format: start:end:increment')
+    parser_titrate.add_argument('-mdp', dest='mdp_file', action='append',
+                                help='Name(s) of mdp file(s)). Can be given multiple times.')
+    parser_titrate.add_argument('-p', dest='top_file', type=str, default='system.top',
+                                help='Name of the titratable topology (.top) file')
+    parser_titrate.add_argument('-c', dest='gro_file', type=str, default='start.gro',
+                                help='Name of the titratable coordinate (.gro) file')
+    parser_titrate.add_argument('-o', dest='out_file', type=str, default='run.sh',
+                                help='Name of the output script')
+
+    parser_titrate.set_defaults(func=titrate)
 
     # ============================================================================
     #           Input Arguments for the analysis tool
