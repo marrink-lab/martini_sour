@@ -70,7 +70,7 @@ def main():
     # List of Subparsers for the different tools
     parser_conv_itp = subparsers.add_parser('conv_itp')
     parser_conv_coords = subparsers.add_parser('conv_coords')
-    parser_analyze = subparsers.add_parser('analyze_traj')
+    parser_analyze = subparsers.add_parser('analyze')
     parser_titrate = subparsers.add_parser('titrate')
 
     # =============================================================================
@@ -92,8 +92,8 @@ def main():
                                help='An enumeration of residues to convert to bases.')
     titrate_group.add_argument('-acids', dest='bases', type=str, nargs='+',
                                help='An enumeration of residues to convert to acids.')
-    titrate_group.add_argument('-auto', dest='auto', type=bool, default=False,
-                               help='Identify acids/bases automatically from known building ''blocks.')
+    titrate_group.add_argument('-auto', dest='auto', type=bool, default=False, help='Identify '
+                               'acids/bases automatically from known building blocks.')
 
     parser_conv_itp.set_defaults(func=conv_itp)
 
@@ -153,27 +153,36 @@ def main():
     #           Input Arguments for the analysis tool
     # ============================================================================
 
-    parser_analyze.add_argument('-name', required=True, type=str, dest="name",
-                                help="name of the final molecule")
     parser_analyze.add_argument('-v', dest='verbosity', action='count',
                                 help='Enable debug logging output. Can be given '
                                 'multiple times.', default=0)
-    parser_analyze.add_argument('-count', dest='scheme', type=str, help='counting scheme',
-                                default="legacy")
+    parser_analyze.add_argument('-count', dest='scheme', type=str, default="legacy",
+                                help='counting scheme')
+
+    multidir_group = parser_analyze.add_argument_group('Multi-dir analysis (titration)')
+    multidir_group.add_argument('-pH', dest='ph', type=str,
+                                help='pH value range. Format: start:end:increment')
+    multidir_group.add_argument('-dir', dest='dir', type=str,
+                                help='Name of the subdirectory with the trajectory')
 
     file_group = parser_analyze.add_argument_group('Input and output files')
-    file_group.add_argument('-f', dest='traj', required=False, type=Path,
-                            help='force-field files (.ff|.itp)', nargs=1)
-    file_group.add_argument('-s', dest='tpr', required=False, type=Path,
-                            help='force-field files (.ff|.itp)', nargs=1)
-    file_group.add_argument('-o', dest='out', type=Path,
-                            help='output file (.json)', required=True)
+    file_group.add_argument('-f', dest='traj', type=str, default='traj_comp.xtc',
+                            help='GROMACS trajectory file (.xtc)')
+    file_group.add_argument('-s', dest='tpr', type=str, default='topol.tpr',
+                            help='GROMACS topology file (.tpr)')
+    file_group.add_argument('-o', dest='out', type=str, default='out.xvg',
+                            help='output file name for average degree of deprotonation values')
+    file_group.add_argument('-os', dest='std_out', type=str,
+                            help='output file name for STD of degree of deprotonation values')
+    file_group.add_argument('-op', dest='plot_out', type=str,
+                            help='output file name for titration analysis plot (use .pdf)')
 
-    bead_group = parser_analyze.add_argument_group('Titratable bead selections')
-    bead_group.add_argument('-ref', dest='ref', required=True, type=str,
-                            help='MDAnalysis selection string.')
-    bead_group.add_argument('-sel', dest='sel', required=True, type=str,
-                            help='MDAnalysis selection string.')
+    bead_group = parser_analyze.add_argument_group('Titratable Bead Selections '
+                                                   '(can enter multiple of each)')
+    bead_group.add_argument('-sel', dest='sel', action='append', help='selection command '
+                            '(see MDAnalysis) for the chosen bead type(s)', required=True)
+    bead_group.add_argument('-ref', dest='ref', action='append', help='selection command '
+                            '(see MDAnalysis) for the reference bead type(s)', required=True)
 
     traj_group = parser_analyze.add_argument_group('Trajectory Options')
     traj_group.add_argument('-b', dest='start', type=int, help='first frame (int)', default=0)
