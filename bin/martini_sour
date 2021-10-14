@@ -77,18 +77,25 @@ def main():
     parser_conv_itp.add_argument('-v', dest='verbosity', action='count',
                                 help='Enable debug logging output. Can be given '
                                 'multiple times.', default=0)
+    parser_conv_itp.add_argument('-ff', dest='forcefield',type=str,
+                                help='Force-Field for which to do conversion.', default="martini3_beta")
 
     file_group = parser_conv_itp.add_argument_group('Input and output options')
     file_group.add_argument('-f', dest='inpath', required=False, type=Path,
-                            help='Input file (ITP)', nargs="*")
+                            help='Input file (ITP)')
     file_group.add_argument('-o', dest='outpath', type=Path,
                             help='Output ITP (ITP)')
 
     titrate_group = parser_conv_itp.add_argument_group('Titratable Bead definitions.')
-    titrate_group.add_argument('-bases', dest='bases', type=str, nargs='+',
-                           help='An enumeration of residues to convert to bases.')
-    titrate_group.add_argument('-acids', dest='bases', type=str, nargs='+',
-                           help='An enumeration of residues to convert to acids.')
+    titrate_group.add_argument('-tres', dest='specs', action='append',
+                                type=lambda s: s.split(':'), default=[],
+                                help='Add a modification to a residue. Desired '
+                                'modification is specified as, e.g. A-ASP45:ASP0. '
+                                'The format is <chain>-<resname><resid>:<modification>.'
+                                ' Elements of the specification can be omitted as '
+                                'required.')
+    titrate_group.add_argument('-pkas', dest='pKas', type=lambda x: x.split(':'), action='append',
+                           help='pKa per residue')
     titrate_group.add_argument('-auto', dest='auto', type=bool, default=False,
                            help='Identify acids/bases automatically from known building blocks.')
 
@@ -161,13 +168,6 @@ def main():
 
     args = parser.parse_args()
 
-    if args.list_blocks:
-        force_field = load_library("libs", args.list_blocks, [])
-        msg = 'The following Blocks are present in the following libraries: {}:'
-        print(msg.format(args.list_blocks))
-        for block in force_field.blocks:
-            print(block)
-        parser.exit()
 
     loglevels = {0: logging.INFO, 1: logging.DEBUG, 2: 5}
     LOGGER.setLevel(loglevels[args.verbosity])

@@ -1,0 +1,94 @@
+[ link ]
+[ atoms ]
+BAS {"degree": "0", "atype":"N5d", "replace": {"suffix": "F"}}
+D0 {"replace": {"atype": "DB1"}}
+DP {"replace": {"atype": "DB2"}}
+[ bonds ]
+BAS D0 1 0.187 4000
+[ constraints ]
+BAS DP 1 0.000
+
+[ link ]
+[ atoms ]
+BAS {"degree": "1", "atype":"N5d", "replace": {"suffix": "R"}}
+D0 {"replace": {"atype": "DB1"}}
+DP {"replace": {"atype": "DB2"}}
+[ bonds ]
+BAS D0 1 0.187 4000
+[ constraints ]
+BAS DP 1 0.000
+[ angles ]
+D0  BAS  R   2  0  500
+
+[ link ]
+[ atoms ]
+BAS {"degree": "2", "atype":"N5d", "replace": {"suffix": ""}}
+D0 {"replace": {"atype": "DB1"}}
+DP {"replace": {"atype": "DB2"}}
+[ bonds ]
+BAS D0 1 0.187 4000
+[ constraints ]
+BAS DP 1 0.000
+[ angles ]
+D0  BAS  R   2  0  500
+
+[ link ]
+[ atoms ]
+BAS {"degree": "0", "atype":"SN6d", "replace": {"suffix": "F"}}
+D0 {"replace": {"atype": "DB4"}}
+DP {"replace": {"atype": "DB3"}}
+[ bonds ]
+BAS D0 1 0.187 4000
+[ constraints ]
+BAS DP 1 0.000
+
+[ link ]
+[ atoms ]
+BAS {"degree": "1", "atype":"SN6d", "replace": {"suffix": "R"}}
+D0 {"replace": {"atype": "DB4"}}
+DP {"replace": {"atype": "DB3"}}
+[ bonds ]
+BAS D0 1 0.187 4000
+[ constraints ]
+BAS DP 1 0.000
+[ angles ]
+D0  BAS  R   2  0  500
+
+[ link ]
+[ atoms ]
+BAS {"degree": "2", "atype":"SN6d", "replace": {"suffix": ""}}
+D0 {"replace": {"atype": "DB4"}}
+DP {"replace": {"atype": "DB3"}}
+[ bonds ]
+BAS D0 1 0.187 4000
+[ constraints ]
+BAS DP 1 0.000
+[ angles ]
+D0  BAS  R   2  0  500
+
+[ link ]
+[ atoms ]
+ACD {"atype":"P2", "replace": {"suffix": ""}}
+DN {"atype": "DA1"}
+DP {"atype": "DA2"}
+[ constraints ]
+ACD DN 1 0.166
+ACD DP 1 0.200
+[ angles ]
+DN  ACD  DP   2   126 500
+[ edges ]
+ACD DN
+ACD DP
+
+[ link ]
+[ atoms ]
+ACD {"atype":"P2", "replace": {"suffix": ""}}
+DN {"atype": "DA1"}
+DP {"atype": "DA2"}
+R { }
+[ angles ]
+DN  ACD  R    2  0.0  500
+[ edges ]
+ACD DN
+ACD DP
+ACD R
