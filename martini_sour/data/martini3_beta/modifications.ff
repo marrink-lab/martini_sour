@@ -1,0 +1,23 @@
+[ citations ]
+Martini3
+TitrMartini
+
+[ modification ]
+acid
+[ atoms ]
+ACD {"replace": {"charge": 0.0}}
+DN  {"add": {"atype": "DA1", "charge": -1.0, "idx": 1}}
+DP  {"add": {"atype": "DA2", "charge": 0.0, "idx": 2}}
+[ edges ]
+ACD DN
+ACD DP
+
+[ modification ]
+base
+[ atoms ]
+BAS {"replace": {"charge": -1.0}}
+D0  {"add": {"charge": 0.0, "idx": 1}}
+DP  {"add": {"charge": 1.0, "idx": 2}}
+[ edges ]
+BAS D0
+BAS DP
