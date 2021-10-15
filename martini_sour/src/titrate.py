@@ -13,45 +13,76 @@
 # limitations under the License.
 
 import numpy as np
-import os
+from pathlib import Path
 
 
-def get_ph_values(ph_range):
-    init, final, increment = [float(i) for i in ph_range.split(':')]
-    vals = np.arange(init, final+1e-3, increment)
-    vals = [f'{val:.1f}' for val in vals]
-    return vals
+def get_ph_values(ph_vals):
+    """
+    Parameters
+    ----------
+    ph_vals : list of strings
+        Each element is either a single value or a range with increments (e.g., 3:8:0.5)
+
+    Returns
+    -------
+    all_vals : list of strings
+        Ordered unique pH values with 2 decimal precision
+
+    """
+    all_vals = []
+    for ph_val in ph_vals:
+        if ':' in ph_val:
+            init, final, increment = [float(i) for i in ph_val.split(':')]
+            vals = np.arange(init, final+1e-3, increment)
+            all_vals.extend(vals)
+        else:
+            all_vals.append(float(ph_val))
+
+    all_vals = sorted(list(set(all_vals)))
+    all_vals = [f'{val:.2f}' for val in all_vals]
+
+    return all_vals
 
 
 def get_sim_names(mdp_files):
     sims = []
     for mdp_file in mdp_files:
-        if not mdp_file.endswith('.mdp'):
+        if mdp_file.suffix != '.mdp':
             raise NameError('Provided mdp file(s) does not have the ".mdp" extension.')
-        sims.append(mdp_file.split('.mdp')[0].split('/')[-1])
+        sims.append(mdp_file.stem)
     return sims
 
 
-def read_top_file(file_name):
-    with open(file_name) as file:
-        top_file = file.readlines()
-    return top_file
+def update_top_file(file_name, top_file, ph, prefix):
+    """
+    Prepend the pH value to the beginning of the topology file
+    """
+
+    new_top_dir = Path(f'{prefix}{ph}') / file_name
+    new_top_file = f'#define pH{ph}\n\n' + top_file
+    new_top_dir.write_text(new_top_file)
 
 
-def update_top_file(file_name, top_file, ph):
-    new_top_file = [f'#define pH{ph}\n', '\n'] + top_file
-    with open(f'{ph}/{file_name}', 'w') as file:
-        for line in new_top_file:
-            file.write(line)
-
-
-def make_new_dirs(sims, ph):
-    os.makedirs(str(ph), exist_ok=True)
+def make_new_dirs(sims, ph, prefix):
     for sim in sims:
-        os.makedirs(f'{ph}/{sim}', exist_ok=True)
+        Path(f'{prefix}{ph}/{sim}').mkdir(parents=True, exist_ok=True)
 
 
-def create_bash_script(sims, mdp_files, top_file, gro_file, out_file, ph_vals):
+def create_bash_script(sims, mdp_files, top_file, gro_file, out_file, ph_vals, prefix):
+    """
+    Create a bash script for running all the simulations necessary for the titration.
+
+    Parameters
+    ----------
+    sims : list of strings
+    mdp_files : list of strings
+    top_file : Path
+    gro_file : Path
+    out_file : Path
+    ph_vals : list of strings
+    prefix : string
+
+    """
     with open(out_file, 'w') as file:
         file.write('#!/bin/bash\n\n')
         file.write('pHrange=(' + ' '.join(ph_vals) + ')\n\n')
@@ -59,7 +90,7 @@ def create_bash_script(sims, mdp_files, top_file, gro_file, out_file, ph_vals):
         for i, (sim, mdp_file) in enumerate(zip(sims, mdp_files)):
 
             if i == 0:
-                cd = '  cd ${ph}/' + f'{sim}\n'
+                cd = f'cd {prefix}' + '${ph}/' + f'{sim}\n'
                 gro_file = f'../../{gro_file}'
             else:
                 cd = f'  cd ../{sim}\n'
@@ -76,10 +107,11 @@ def create_bash_script(sims, mdp_files, top_file, gro_file, out_file, ph_vals):
 def titrate(args):
     ph_vals = get_ph_values(args.ph)
     sims = get_sim_names(args.mdp_file)
-    top_file = read_top_file(args.top_file)
+    top_file = args.top_file.read_text()
 
     for ph in ph_vals:
-        make_new_dirs(sims, ph)
-        update_top_file(args.top_file, top_file, ph)
+        make_new_dirs(sims, ph, args.prefix)
+        update_top_file(args.top_file, top_file, ph, args.prefix)
 
-    create_bash_script(sims, args.mdp_file, args.top_file, args.gro_file, args.out_file, ph_vals)
+    create_bash_script(sims, args.mdp_file, args.top_file, args.gro_file, args.out_file, ph_vals,
+                       args.prefix)
