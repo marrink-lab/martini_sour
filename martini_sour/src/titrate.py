@@ -55,11 +55,21 @@ def get_sim_names(mdp_files):
 
 def update_top_file(file_name, top_file, ph, prefix):
     """
-    Prepend the pH value to the beginning of the topology file
+    Prepend the pH value to the beginning of the topology file and adjust the directory
+    of included ITP files.
     """
 
     new_top_dir = Path(f'{prefix}{ph}') / file_name
-    new_top_file = f'#define pH{ph}\n\n' + top_file
+    new_top_file = f'#define pH{ph}\n\n'
+
+    top_file = top_file.split('\n')
+    for line in top_file:
+        if '#include' in line.replace(" ", ""):
+            path = Path(line.replace('"', "'").split("'")[1])
+            new_path = '..' / path
+            line = line.replace(str(path), str(new_path))
+        new_top_file += f'{line}\n'
+
     new_top_dir.write_text(new_top_file)
 
 
