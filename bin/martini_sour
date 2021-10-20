@@ -163,31 +163,38 @@ def main():
                                 help='counting scheme')
 
     multidir_group = parser_analyze.add_argument_group('Multi-dir analysis (titration)')
-    multidir_group.add_argument('-pH', dest='ph', type=str,
-                                help='pH value range. Format: start:end:increment')
-    multidir_group.add_argument('-dir', dest='dir', type=str,
+    multidir_group.add_argument('-pH', dest='ph', type=str, nargs='*', default=[],
+                                help='Either individual values (e.g., -pH 6 6.5 7) or '
+                                'a range with format start:end:increment (e.g., -pH 3:8:0.5)')
+    multidir_group.add_argument('-dir', dest='dir', type=str, default='',
                                 help='Name of the subdirectory with the trajectory')
-    multidir_group.add_argument('-prefix', dest='prefix', type=str,
-                                help='Prefix for the pH directory (e.g., pre_6.50')
+    multidir_group.add_argument('-prefix', dest='prefix', type=str, default='',
+                                help='Prefix for the pH directory (e.g., pre_6.50)')
+    multidir_group.add_argument('-fit', dest='fit', action='store_true', default=False,
+                                help='Enables the fitting of the titration curve. Sufficient pH '
+                                'data points are needed for meaningful results.')
 
     file_group = parser_analyze.add_argument_group('Input and output files')
     file_group.add_argument('-f', dest='traj', type=Path, default='traj_comp.xtc',
                             help='GROMACS trajectory file (.xtc)')
     file_group.add_argument('-s', dest='tpr', type=Path, default='topol.tpr',
                             help='GROMACS topology file (.tpr)')
-    file_group.add_argument('-o', dest='out', type=Path, default='out.xvg',
+    file_group.add_argument('-o', dest='out', type=Path, default='degree_of_deprot.xvg',
                             help='output file name for average degree of deprotonation values')
     file_group.add_argument('-os', dest='std_out', type=Path,
                             help='output file name for STD of degree of deprotonation values')
-    file_group.add_argument('-op', dest='plot_out', type=Path,
-                            help='output file name for titration analysis plot (use .pdf)')
+    file_group.add_argument('-of', dest='fit_out', type=Path, default='pka_fit.xvg', help='output'
+                            'file name for titration curve fit values. -fit must be enabled.')
+    file_group.add_argument('-op', dest='plot_out', type=Path, default='titr_curve.pdf', help='out'
+                            'put file name for titration analysis plot. -fit must be enabled.')
 
-    bead_group = parser_analyze.add_argument_group('Titratable Bead Selections '
-                                                   '(can enter multiple of each)')
-    bead_group.add_argument('-sel', dest='sel', action='append', help='selection command '
-                            '(see MDAnalysis) for the chosen bead type(s)', required=True)
-    bead_group.add_argument('-ref', dest='ref', action='append', help='selection command '
-                            '(see MDAnalysis) for the reference bead type(s)', required=True)
+    bead_group = parser_analyze.add_argument_group('Titratable Bead Selections')
+    bead_group.add_argument('-sel', dest='sel', action='append', help='selection command (see '
+                            'MDAnalysis) for the chosen bead type(s). Can enter multiple times.',
+                            required=True)
+    bead_group.add_argument('-ref', dest='ref', type=str, help='selection command (see MDAnalysis)'
+                            'for the remaining titratable beads not selected by -sel command.',
+                            required=True)
     bead_group.add_argument('-prot', dest='prot', type=str, default='POS',
                             help='name of the proton bead (default: POS)')
 
@@ -196,10 +203,6 @@ def main():
     traj_group.add_argument('-e', dest='end', type=int, help='last frame (int)', default=-1)
 
     parser_analyze.set_defaults(func=analyze)
-
-    # ============================================================================
-    # Deal with queries of the polyply library
-    # ============================================================================
 
     args = parser.parse_args()
 

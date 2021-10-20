@@ -17,32 +17,36 @@ import MDAnalysis as mda
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+from pathlib import Path
 from .titrate import get_ph_values
 
 
-def setup_dirs(ph_range, sim_dir, traj_file, tpr_file):
+def setup_dirs(ph_values, sub_dir, prefix):
     """
     Sets up directory paths based on whether multidir options have been provided or not.
     """
 
-    if ph_range and sim_dir:
-        ph_values = get_ph_values(ph_range)
-        traj_paths = [f'{ph}/{sim_dir}/{traj_file}' for ph in ph_values]
-        tpr_paths = [f'{ph}/{sim_dir}/{tpr_file}' for ph in ph_values]
+    if ph_values:
+        ph_values = get_ph_values(ph_values)
+        sim_dirs = [Path(f'{prefix}{ph}/{sub_dir}') for ph in ph_values]
     else:
-        traj_paths = [traj_file]
-        tpr_paths = [tpr_file]
+        sim_dirs = [Path.cwd()]
 
-    return traj_paths, tpr_paths, np.array(ph_values, dtype=float)
+    return sim_dirs, np.array(ph_values, dtype=float)
 
 
-def save_to_file(out_file, ph_values, props, sel_commands):
-    array = np.concatenate((ph_values[np.newaxis], props.T), axis=0)
+def save_degree_of_prot_to_file(out_file, ph_values, props):
 
-    fmt = ['%6.2f']+['%10.5f']*(len(array)-1)
-    header = '  pH ' + ' '.join([f'sel. {i}'.rjust(10) for i in range(1, len(array))])
+    fmt = '%10.5f'*props.shape[1]
+    header = ''.join([f'sel. {i}'.rjust(10) for i in range(1, props.shape[1]+1)])
 
-    np.savetxt(out_file, array.T, fmt=fmt, header=header)
+    if ph_values.size != 0:
+        props = np.column_stack((ph_values, props))
+        fmt = '%6.2f' + fmt
+        header = '    pH' + header
+    fmt = '  ' + fmt
+
+    np.savetxt(out_file, props, fmt=fmt, header=header)
 
 
 def do_statistics(degrees_of_deprot):
@@ -50,26 +54,44 @@ def do_statistics(degrees_of_deprot):
     This is probably where a more complicated statistical analysis would be inferfaced
     """
 
-    mean = np.array(degrees_of_deprot).mean(axis=-1)
-    std = np.array(degrees_of_deprot).std(axis=-1)
+    means = np.array(degrees_of_deprot).mean(axis=-1)
+    stds = np.array(degrees_of_deprot).std(axis=-1)
 
-    return mean, std
+    return means, stds
 
 
 def calc_degree_of_deprot(ph, pka, q):
     return 1/(10**(q*(pka-ph))+1)
 
 
-def do_plotting(out_file, mean, ph_values):
+def fit_titration_curve(ph_values, means, stds):
+    fits = []
+    fit_std_errs = []
+    for mean, std in zip(means.T, stds.T):
+        popt, pcov = curve_fit(calc_degree_of_deprot, ph_values, mean, p0=(7.5, 0.75),
+                               sigma=std, absolute_sigma=True)
+        std_err = np.sqrt(np.diag(pcov))
+        fits.append(popt)
+        fit_std_errs.append(std_err)
+    return fits, fit_std_errs
+
+
+def write_pka_to_file(output_file, ph_values, fits, fit_std_errs):
+    sel_range = np.arange(1, len(fits)+1)
+    fmt = '%8d' + '%10.5f'*4
+    header = 'Sel. #       pKa         q  err(pKa)    err(q)'
+    props = np.column_stack((sel_range, fits, fit_std_errs))
+    np.savetxt(output_file, props, fmt=fmt, header=header)
+
+
+def do_plotting(out_file, ph_values, fits, fit_std_errs, means):
     ph_range = np.arange(ph_values.min(), ph_values.max()+1e-3, 0.1)
     fig = plt.figure()
 
-    for i, one_sel in enumerate(mean.T, start=1):
-
-        fit = curve_fit(calc_degree_of_deprot, ph_values, one_sel, p0=(7.5, 0.75))[0]
-
-        points, = plt.plot(ph_values, one_sel, '^',
-                           label=f'Sel. {i}, pKa = {fit[0]:.2f}, q = {fit[1]:.2f}')
+    for i, (fit, std_err, mean) in enumerate(zip(fits, fit_std_errs, means.T), start=1):
+        points, = plt.plot(ph_values, mean, '^',
+                           label=f'Sel. {i}, pKa = {fit[0]:.2f}\u00B1{std_err[0]:.2f}'
+                                 f', q = {fit[1]:.2f}\u00B1{std_err[1]:.2f}')
         plt.plot(ph_range, calc_degree_of_deprot(ph_range, *fit), color=points.get_color())
 
     plt.xlabel('pH')
@@ -79,12 +101,59 @@ def do_plotting(out_file, mean, ph_values):
     fig.savefig(out_file, bbox_inches='tight')
 
 
-def do_one_trajectory(tpr_path, traj_path, sel_commands, ref_commands, start, end, scheme):
-    u = mda.Universe(tpr_path, traj_path)
+def construct_reference(u, sel_commands, ref_command):
+    """
+    Reference is constructed as ref_command + all selections that are not the current one.
+
+    """
+
+    if ref_command:
+        refs = [u.select_atoms(ref_command) for _ in enumerate(sel_commands)]
+    else:
+        refs = [u.select_atoms('') for _ in enumerate(sel_commands)]
+
+    if len(sel_commands) > 1:
+        other_sels = [' or '.join([command for command in sel_commands if command != sel_command])
+                      for sel_command in sel_commands]
+        refs = [ref + u.select_atoms(other_sel) for ref, other_sel in zip(refs, other_sels)]
+
+    return refs
+
+
+def do_one_trajectory(sim_dir, tpr_file, traj_file, sel_commands, ref_command, prot, start, end,
+                      scheme):
+    """
+
+    Parameters
+    ----------
+    sim_dir : Pathlib path
+    tpr_file : Pathlib path
+    traj_file : Pathlib path
+    sel_commands : list of str
+        All selection commands given by -sel
+    ref_command : str
+        Selection command for the remaining titratable beads, given by -ref
+    prot : str
+        name of the proton bead
+    start : int
+        time (ps) to start the analysis
+    end : int
+        time (ps) to end the analysis
+    scheme : str
+        proton counting scheme
+
+    Returns
+    -------
+    degree_of_deprot : (n_selections, n_frames) np.array
+        Degree of deprotonation matrix for each selection and for each frame
+
+    """
+
+    u = mda.Universe(str(sim_dir / tpr_file), str(sim_dir / traj_file))
 
     sels = [u.select_atoms(sel_command) for sel_command in sel_commands]
-    refs = [u.select_atoms(ref_command) for ref_command in ref_commands]
-    prot = u.select_atoms("name POS")
+    prot = u.select_atoms(f'name {prot}')
+    refs = construct_reference(u, sel_commands, ref_command)
 
     count = 0
     n_frames = len(u.trajectory[start:end])
@@ -157,19 +226,26 @@ def do_one_analysis(u, sel, ref, prot, scheme):
 
 
 def analyze(args):
-    degrees_of_deprot = []
-    traj_paths, tpr_paths, ph_values = setup_dirs(args.ph, args.dir, args.traj, args.tpr)
 
-    for traj_path, tpr_path in zip(traj_paths, tpr_paths):
-        degree_of_deprot = do_one_trajectory(tpr_path, traj_path, args.sel, args.ref, args.start,
-                                             args.end, args.scheme)
+    degrees_of_deprot = []
+    sim_dirs, ph_values = setup_dirs(args.ph, args.dir, args.prefix)
+
+    for sim_dir in sim_dirs:
+        degree_of_deprot = do_one_trajectory(sim_dir, args.tpr, args.traj, args.sel, args.ref,
+                                             args.prot, args.start, args.end, args.scheme)
         degrees_of_deprot.append(degree_of_deprot)
 
-    mean, std = do_statistics(degrees_of_deprot)
-    save_to_file(args.out, ph_values, mean, args.sel)
+    means, stds = do_statistics(degrees_of_deprot)
+    save_degree_of_prot_to_file(args.out, ph_values, means)
 
     if args.std_out:
-        save_to_file(args.std_out, ph_values, std, args.sel)
+        save_degree_of_prot_to_file(args.std_out, ph_values, stds)
 
-    if args.plot_out:
-        do_plotting(args.plot_out, mean, ph_values)
+    if args.fit:
+        if ph_values.size < 4:
+            print('WARNING: You requested a titration curve fitting with less than 4 pH data '
+                  ' points. It will be ignored.')
+        else:
+            fits, fit_std_errs = fit_titration_curve(ph_values, means, stds)
+            write_pka_to_file(args.fit_out, ph_values, fits, fit_std_errs)
+            do_plotting(args.plot_out, ph_values, fits, fit_std_errs, means)
