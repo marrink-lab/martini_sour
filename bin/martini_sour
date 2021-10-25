@@ -18,17 +18,16 @@
 Perform the parsing and input redirect for the
 different subcommands. This is the main executable.
 """
-import os
+
 import logging
 import argparse
 from pathlib import Path
-import numpy as np
 from vermouth.log_helpers import (StyleAdapter, BipolarFormatter,
                                   CountingHandler, TypeAdapter,
                                   ignore_warnings_and_count,)
 
 import martini_sour
-from martini_sour import conv_itp, conv_coords, analyze
+from martini_sour import conv_itp, conv_coords, analyze, titrate
 
 # Implement Logger
 LOGGER = TypeAdapter(logging.getLogger('martini_sour'))
@@ -54,6 +53,8 @@ LOGGER.addHandler(COUNTER)
 LOGGER = StyleAdapter(LOGGER)
 
 VERSION = 'martini_sour version {}'.format(martini_sour.__version__)
+
+
 def main():
     """
     Parses commandline arguments and call relevant sub_programs.
@@ -68,15 +69,16 @@ def main():
     # List of Subparsers for the different tools
     parser_conv_itp = subparsers.add_parser('conv_itp')
     parser_conv_coords = subparsers.add_parser('conv_coords')
-    parser_analyze = subparsers.add_parser('analyze_traj')
+    parser_analyze = subparsers.add_parser('analyze')
+    parser_titrate = subparsers.add_parser('titrate')
 
     # =============================================================================
     # Input Arguments for the itp generation tool
     # =============================================================================
 
     parser_conv_itp.add_argument('-v', dest='verbosity', action='count',
-                                help='Enable debug logging output. Can be given '
-                                'multiple times.', default=0)
+                                 help='Enable debug logging output. Can be given '
+                                 'multiple times.', default=0)
 
     file_group = parser_conv_itp.add_argument_group('Input and output options')
     file_group.add_argument('-f', dest='inpath', required=False, type=Path,
@@ -86,11 +88,11 @@ def main():
 
     titrate_group = parser_conv_itp.add_argument_group('Titratable Bead definitions.')
     titrate_group.add_argument('-bases', dest='bases', type=str, nargs='+',
-                           help='An enumeration of residues to convert to bases.')
+                               help='An enumeration of residues to convert to bases.')
     titrate_group.add_argument('-acids', dest='bases', type=str, nargs='+',
-                           help='An enumeration of residues to convert to acids.')
-    titrate_group.add_argument('-auto', dest='auto', type=bool, default=False,
-                           help='Identify acids/bases automatically from known building blocks.')
+                               help='An enumeration of residues to convert to acids.')
+    titrate_group.add_argument('-auto', dest='auto', type=bool, default=False, help='Identify '
+                               'acids/bases automatically from known building blocks.')
 
     parser_conv_itp.set_defaults(func=conv_itp)
 
@@ -99,20 +101,24 @@ def main():
     # ============================================================================
 
     parser_conv_coords.add_argument('-v', dest='verbosity', action='count',
-                                   help='Enable debug logging output. Can be given '
-                                   'multiple times.', default=0)
+                                    help='Enable debug logging output. Can be given '
+                                    'multiple times.', default=0)
 
     file_group = parser_conv_coords.add_argument_group('Convert regular to titratable beads.')
-    file_group.add_argument('-o', dest='out_file', type=Path,
-                            help='output GRO (.gro)')
     file_group.add_argument('-f', dest='input_file', type=Path,
-                            help='input file (.gro)', default=None)
+                            help='input coordinate file (.gro, .pdb, etc.)')
+    file_group.add_argument('-o', dest='out_file', type=Path,
+                            help='output titratable coordinate file (.gro, .pdb, etc.)')
 
-    titrate_group = parser_conv_coords.add_argument_group('Titratable Bead Selections')
-    titrate_group.add_argument('-sel', dest='sel', help='name of water atom')
-    titrate_group.add_argument('-bead',dest='bead_type',
-                               help='choice of: water, acid, base, acid-deprot, base-prot')
-
+    titrate_group = parser_conv_coords.add_argument_group('Titratable Bead Selections '
+                                                          '(can enter multiple of each)')
+    titrate_group.add_argument('-bead', dest='bead_type', action='append',
+                               choices=martini_sour.src.conv_coords.BEAD_TYPES.keys(),
+                               help='type of the selected beads')
+    titrate_group.add_argument('-sel', dest='sel', action='append', help='selection command '
+                               '(see MDAnalysis) for the chosen bead type(s)')
+    titrate_group.add_argument('-prot', dest='prot', type=str, default='POS',
+                               help='name of the proton bead (default: POS)')
 #    titrate_group.add_argument('-bases', dest='bases', type=str, nargs='+',
 #                           help='An enumeration of residues to convert to bases.')
 #    titrate_group.add_argument('-acids', dest='bases', type=str, nargs='+',
@@ -122,36 +128,69 @@ def main():
 
     parser_conv_coords.set_defaults(func=conv_coords)
 
+    # ============================================================================
+    #           Input Arguments for initializing the titration
+    # ============================================================================
+
+    parser_titrate.add_argument('-v', dest='verbosity', action='count',
+                                help='Enable debug logging output. Can be given '
+                                'multiple times.', default=0)
+
+    parser_titrate.add_argument('-pH', dest='ph', type=Path,
+                                help='pH value range. Format: start:end:increment')
+    parser_titrate.add_argument('-mdp', dest='mdp_file', action='append', type=Path,
+                                help='Name(s) of mdp file(s)). Can be given multiple times.')
+    parser_titrate.add_argument('-p', dest='top_file', type=Path, default='system.top',
+                                help='Name of the titratable topology (.top) file')
+    parser_titrate.add_argument('-c', dest='gro_file', type=Path, default='start.gro',
+                                help='Name of the titratable coordinate (.gro) file')
+    parser_titrate.add_argument('-o', dest='out_file', type=Path, default='run.sh',
+                                help='Name of the output script')
+
+    parser_titrate.set_defaults(func=titrate)
 
     # ============================================================================
     #           Input Arguments for the analysis tool
     # ============================================================================
 
-    parser_analyze.add_argument('-name', required=True, type=str, dest="name",
-                                help="name of the final molecule")
     parser_analyze.add_argument('-v', dest='verbosity', action='count',
                                 help='Enable debug logging output. Can be given '
                                 'multiple times.', default=0)
-    parser_analyze.add_argument('-count', dest='scheme', type=str, help='counting scheme',
-                                default="legacy")
+    parser_analyze.add_argument('-count', dest='scheme', type=str, default="legacy",
+                                help='counting scheme')
+
+    multidir_group = parser_analyze.add_argument_group('Multi-dir analysis (titration)')
+    multidir_group.add_argument('-pH', dest='ph', type=str,
+                                help='pH value range. Format: start:end:increment')
+    multidir_group.add_argument('-dir', dest='dir', type=str,
+                                help='Name of the subdirectory with the trajectory')
+    multidir_group.add_argument('-prefix', dest='prefix', type=str,
+                                help='Prefix for the pH directory (e.g., pre_6.50')
 
     file_group = parser_analyze.add_argument_group('Input and output files')
-    file_group.add_argument('-f', dest='traj', required=False, type=Path,
-                            help='force-field files (.ff|.itp)', nargs=1)
-    file_group.add_argument('-s', dest='tpr', required=False, type=Path,
-                            help='force-field files (.ff|.itp)', nargs=1)
-    file_group.add_argument('-o', dest='out', type=Path,
-                            help='output file (.json)', required=True)
+    file_group.add_argument('-f', dest='traj', type=Path, default='traj_comp.xtc',
+                            help='GROMACS trajectory file (.xtc)')
+    file_group.add_argument('-s', dest='tpr', type=Path, default='topol.tpr',
+                            help='GROMACS topology file (.tpr)')
+    file_group.add_argument('-o', dest='out', type=Path, default='out.xvg',
+                            help='output file name for average degree of deprotonation values')
+    file_group.add_argument('-os', dest='std_out', type=Path,
+                            help='output file name for STD of degree of deprotonation values')
+    file_group.add_argument('-op', dest='plot_out', type=Path,
+                            help='output file name for titration analysis plot (use .pdf)')
 
-    bead_group = parser_analyze.add_argument_group('Titratable bead selections')
-    bead_group.add_argument('-ref', dest='ref', required=True, type=str,
-                            help='MDAnalysis selection string.')
-    bead_group.add_argument('-sel', dest='sel', required=True, type=str,
-                            help='MDAnalysis selection string.')
+    bead_group = parser_analyze.add_argument_group('Titratable Bead Selections '
+                                                   '(can enter multiple of each)')
+    bead_group.add_argument('-sel', dest='sel', action='append', help='selection command '
+                            '(see MDAnalysis) for the chosen bead type(s)', required=True)
+    bead_group.add_argument('-ref', dest='ref', action='append', help='selection command '
+                            '(see MDAnalysis) for the reference bead type(s)', required=True)
+    bead_group.add_argument('-prot', dest='prot', type=str, default='POS',
+                            help='name of the proton bead (default: POS)')
 
     traj_group = parser_analyze.add_argument_group('Trajectory Options')
-    traj_group.add_argument('-b',dest='start',type=int,help='first frame (int)',default=0)
-    traj_group.add_argument('-e',dest='end',type=int,help='last frame (int)',default=-1)
+    traj_group.add_argument('-b', dest='start', type=int, help='first frame (int)', default=0)
+    traj_group.add_argument('-e', dest='end', type=int, help='last frame (int)', default=-1)
 
     parser_analyze.set_defaults(func=analyze)
 
@@ -160,14 +199,6 @@ def main():
     # ============================================================================
 
     args = parser.parse_args()
-
-    if args.list_blocks:
-        force_field = load_library("libs", args.list_blocks, [])
-        msg = 'The following Blocks are present in the following libraries: {}:'
-        print(msg.format(args.list_blocks))
-        for block in force_field.blocks:
-            print(block)
-        parser.exit()
 
     loglevels = {0: logging.INFO, 1: logging.DEBUG, 2: 5}
     LOGGER.setLevel(loglevels[args.verbosity])
