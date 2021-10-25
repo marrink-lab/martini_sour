@@ -100,7 +100,7 @@ def create_bash_script(sims, mdp_files, top_file, gro_file, out_file, ph_vals, p
         for i, (sim, mdp_file) in enumerate(zip(sims, mdp_files)):
 
             if i == 0:
-                cd = f'cd {prefix}' + '${ph}/' + f'{sim}\n'
+                cd = f'  cd {prefix}' + '${pH}/' + f'{sim}\n'
                 gro_file = f'../../{gro_file}'
             else:
                 cd = f'  cd ../{sim}\n'
