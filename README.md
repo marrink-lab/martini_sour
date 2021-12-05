@@ -1,6 +1,6 @@
 # martini_sour
 
-#![license](https://img.shields.io/github/license/marrink-lab/polyply_1.0)
+![license](https://img.shields.io/github/license/marrink-lab/polyply_1.0)
 
 ## Functionality
 Help setup titratable martini simulations and analyze them.
