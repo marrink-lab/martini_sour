@@ -5,8 +5,11 @@
 ## Functionality
 Help setup titratable martini simulations and analyze them.
 
+## Examples
+Examples corresponding to martini_sour can be found in: [marrink-lab/martini_sour_examples](https://www.github.com/marrink-lab/martini_sour_examples)
+
 ## Contributions
-The code development of polyply is done 
+The code development of martini_sour is done 
 on [github]. Contributions are welcome as [bug reports] and [pull requests] from everyone.
 
 ## License
